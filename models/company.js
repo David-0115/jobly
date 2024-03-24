@@ -157,6 +157,8 @@ class Company {
   * 
   * Throws error if invalid query or min > max
   * 
+  * Throws NotFoundError if filter returns no companies.
+  * 
   */
 
   static async filter(query) {
@@ -203,11 +205,15 @@ class Company {
       logo_url AS "logoUrl"
         FROM companies
           WHERE ${sqlWhere}
-            ORDER BY name`
+            ORDER BY name`;
 
     const result = await db.query(queryStmt, [...params]);
 
-    return result.rows;
+    const companies = result.rows
+
+    if (!companies) throw new NotFoundError(`No companies were found matching that filter criteria.`)
+
+    return companies;
 
   }
 }
