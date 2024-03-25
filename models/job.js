@@ -108,12 +108,14 @@ class Job {
                 FROM jobs
                 WHERE id = $1
                 ORDER BY title`,
-            [id]
+            [+id]
         );
 
         const job = jobRes.rows
 
-        if (!job) throw new NotFoundError(`No Jobs listed with id ${id}`);
+        if (job.length === 0) {
+            throw new NotFoundError(`No Jobs listed with id ${id}`);
+        }
 
         return job
     };
@@ -186,11 +188,13 @@ class Job {
         if (query.title) {
             query.title = `%${query.title}%`
         }
+        if (query.minSalary) {
+            query.minSalary = +query.minSalary;
+        }
 
         const sqlMap = {
             title: `title ILIKE`,
-            minSalary: `salary >=`,
-            hasEquity: `equity ${'= 0' ? !query.hasEquity : '> 0'}`
+            minSalary: `salary >=`
         };
 
         let params = [];
@@ -198,23 +202,30 @@ class Job {
         const queryKeys = Object.keys(query)
 
         queryKeys.forEach(key => {
-            if (query[key] && sqlMap[key]) {
+            if (key == 'hasEquity') {
+                if (query.hasEquity === 'true') {
+                    conditions.push(`equity <> '0' AND equity IS NOT NULL`)
+                } else {
+                    conditions.push(`equity = '0' OR equity IS NULL`)
+                }
+            } else if (query[key] && sqlMap[key]) {
                 params.push(query[key]);
                 conditions.push(`${sqlMap[key]} $${params.length}`)
             }
+
         });
 
-        const sqlWhere = conditions.join(" AND ")
+        const sqlWhere = conditions.join(" AND ");
 
         const queryStmt = `
                 SELECT id,
                        title,
-                       company_handle AS companyHandle,
+                       company_handle AS "companyHandle",
                        salary,
-                       equity,
+                       equity
                     FROM jobs
                     WHERE ${sqlWhere}
-                    ORDER BY title, companyHandle`;
+                    ORDER BY title, "companyHandle"`;
 
         const result = await db.query(queryStmt, [...params]);
 

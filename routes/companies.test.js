@@ -126,24 +126,10 @@ describe("GET /companies", function () {
 
   describe("GET /companies?querystring", function () {
     test("works with nameLike query string", async function () {
-      const resp = await request(app).get("/companies?nameLike=c");
+      const resp = await request(app).get("/companies?nameLike=3");
       expect(resp.body).toEqual({
         companies:
           [
-            {
-              handle: "c1",
-              name: "C1",
-              description: "Desc1",
-              numEmployees: 1,
-              logoUrl: "http://c1.img",
-            },
-            {
-              handle: "c2",
-              name: "C2",
-              description: "Desc2",
-              numEmployees: 2,
-              logoUrl: "http://c2.img",
-            },
             {
               handle: "c3",
               name: "C3",
@@ -155,7 +141,7 @@ describe("GET /companies", function () {
       });
     });
 
-    test("works with minEmployees and maxEmployees", async function () {
+    test("filter minEmployees and maxEmployees", async function () {
       const resp = await request(app).get("/companies?minEmployees=2&maxEmployees=3");
       expect(resp.body).toEqual({
         companies:
