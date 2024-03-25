@@ -234,6 +234,7 @@ describe("GET /users/:username", function () {
         lastName: "U1L",
         email: "user1@user.com",
         isAdmin: false,
+        jobs: null
       },
     });
   });
@@ -249,7 +250,34 @@ describe("GET /users/:username", function () {
         lastName: "U1L",
         email: "user1@user.com",
         isAdmin: false,
+        jobs: null
       },
+    });
+  });
+
+  test("shows jobs user applied to", async function () {
+    const job = await db.query(`SELECT id FROM jobs WHERE company_handle = 'c2'`);
+    const id = job.rows[0].id;
+    await User.apply("u1", `${id}`);
+    const resp = await request.Test(app)
+      .get(`/users/u1`)
+      .set("authorization", `Bearer ${u1Token}`)
+    expect(resp.body).toEqual({
+      user: {
+        username: "u1",
+        firstName: "U1F",
+        lastName: "U1L",
+        email: "u1@email.com",
+        isAdmin: false,
+        jobs: [
+          {
+            id: id,
+            title: "job2",
+            companyHandle: "c2",
+            companyName: "C2"
+          }
+        ]
+      }
     });
   });
 
@@ -447,4 +475,86 @@ describe("DELETE /users/:username", function () {
       .set("authorization", `Bearer ${u2Token}`);
     expect(resp.statusCode).toEqual(404);
   });
+});
+
+/**********************************POST /users/[username]/jobs/[jobId] */
+describe("POST /users/:username/jobs/:id", function () {
+  test("works for current user", async function () {
+    const job = await db.query(`SELECT id FROM jobs WHERE company_handle = 'c2'`)
+    const id = job.rows[0].id
+    const resp = await request(app)
+      .post(`/users/u1/jobs/${id}`)
+      .set("authorization", `Bearer ${u1Token}`);
+
+    expect(resp.statusCode).toEqual(201);
+    expect(resp.body).toEqual({
+      "applied": `${id}`
+    });
+  });
+
+  test("Unauth if current user !=username or !admin", async function () {
+    const job = await db.query(`SELECT id FROM jobs WHERE company_handle = 'c2'`)
+    const id = job.rows[0].id
+    const resp = await request(app)
+      .post(`/users/u2/jobs/${id}`)
+      .set("authorization", `Bearer ${u1Token}`);
+
+    expect(resp.statusCode).toEqual(401);
+    expect(resp.body).toEqual({
+      "error": {
+        "message": "Unauthorized",
+        "status": 401
+      }
+    });
+  });
+
+
+  test("works for admin", async function () {
+    const job = await db.query(`SELECT id FROM jobs WHERE company_handle = 'c2'`)
+    const id = job.rows[0].id
+    const resp = await request(app)
+      .post(`/users/u1/jobs/${id}`)
+      .set("authorization", `Bearer ${u2Token}`);
+
+    expect(resp.statusCode).toEqual(201);
+    expect(resp.body).toEqual({
+      "applied": `${id}`
+    });
+  });
+
+  test("Unauth for anon", async function () {
+    const job = await db.query(`SELECT id FROM jobs WHERE company_handle = 'c2'`)
+    const id = job.rows[0].id
+    const resp = await request(app)
+      .post(`/users/u1/jobs/${id}`)
+
+    expect(resp.statusCode).toEqual(401);
+    expect(resp.body).toEqual({
+      "error": {
+        "message": "Unauthorized",
+        "status": 401
+      }
+    });
+  });
+
+  test("Dup applications throw error", async function () {
+    const job = await db.query(`SELECT id FROM jobs WHERE company_handle = 'c2'`)
+    const id = job.rows[0].id
+    await request(app)
+      .post(`/users/u2/jobs/${id}`)
+      .set("authorization", `Bearer ${u2Token}`);
+    const resp = await request(app)
+      .post(`/users/u2/jobs/${id}`)
+      .set("authorization", `Bearer ${u2Token}`);
+    expect(resp.statusCode).toBe(400);
+    expect(resp.body).toEqual(
+      {
+        "error": {
+          "message": `Application already exists for username: u2 and jobId: ${id}`,
+          "status": 400
+        }
+      }
+    )
+  });
+
 });

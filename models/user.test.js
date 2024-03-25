@@ -4,6 +4,7 @@ const {
   NotFoundError,
   BadRequestError,
   UnauthorizedError,
+  ExpressError
 } = require("../expressError");
 const db = require("../db.js");
 const User = require("./user.js");
@@ -140,8 +141,32 @@ describe("get", function () {
       lastName: "U1L",
       email: "u1@email.com",
       isAdmin: false,
+      jobs: null
     });
   });
+
+  test("shows jobs user applied to", async function () {
+    const job = await db.query(`SELECT id FROM jobs WHERE company_handle = 'c2'`);
+    const id = job.rows[0].id;
+    await User.apply("u1", `${id}`);
+    const user = await User.get("u1");
+    expect(user).toEqual({
+      username: "u1",
+      firstName: "U1F",
+      lastName: "U1L",
+      email: "u1@email.com",
+      isAdmin: false,
+      jobs: [
+        {
+          id: id,
+          title: "job2",
+          companyHandle: "c2",
+          companyName: "C2"
+        }
+      ]
+    })
+
+  })
 
   test("not found if no such user", async function () {
     try {
@@ -215,7 +240,7 @@ describe("remove", function () {
   test("works", async function () {
     await User.remove("u1");
     const res = await db.query(
-        "SELECT * FROM users WHERE username='u1'");
+      "SELECT * FROM users WHERE username='u1'");
     expect(res.rows.length).toEqual(0);
   });
 
@@ -225,6 +250,50 @@ describe("remove", function () {
       fail();
     } catch (err) {
       expect(err instanceof NotFoundError).toBeTruthy();
+    }
+  });
+});
+
+
+/************************************** apply */
+
+describe("apply", function () {
+  test("works", async function () {
+    const job = await db.query(`SELECT id FROM jobs WHERE company_handle ='c2'`);
+    const apply = await User.apply("u1", `${job.rows[0].id}`)
+
+    expect(apply).toEqual({
+      "username": "u1",
+      "jobId": job.rows[0].id
+    });
+  });
+
+  test("throws NotFoundError if jobId is invalid", async function () {
+    try {
+      await User.apply("u1", "0")
+      fail();
+    } catch (err) {
+      expect(err instanceof NotFoundError).toBeTruthy();
+    }
+  });
+
+  test("throws NotFoundError if username is invalid", async function () {
+    try {
+      const job = await db.query(`SELECT id FROM jobs WHERE company_handle ='c2'`);
+      await User.apply("nouser", `${job.rows[0].id}`);
+      fail();
+    } catch (err) {
+      expect(err instanceof NotFoundError).toBeTruthy();
+    }
+  });
+
+  test("throws ExpressError if duplicate application", async function () {
+    try {
+      const job = await db.query(`SELECT id FROM jobs WHERE company_handle ='c2'`);
+      await User.apply("u1", `${job.rows[0].id}`)
+      await User.apply("u1", `${job.rows[0].id}`)
+    } catch (err) {
+      expect(err instanceof ExpressError).toBeTruthy();
     }
   });
 });
